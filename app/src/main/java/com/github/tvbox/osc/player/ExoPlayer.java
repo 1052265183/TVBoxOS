@@ -229,6 +229,8 @@ public class ExoPlayer extends ExoMediaPlayer {
         })
                 .setEnableDecoderFallback(true)
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
+        factory.setMediaCodecSelector(new C2SoftMediaCodecSelector());
+        LOG.i("echo-exo-soft-first-selector");
         try {
             Method method = DefaultRenderersFactory.class.getMethod("forceDisableMediaCodecAsynchronousQueueing");
             method.invoke(factory);

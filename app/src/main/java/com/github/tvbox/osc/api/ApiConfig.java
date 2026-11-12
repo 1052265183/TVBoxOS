@@ -8,6 +8,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Base64;
+import java.io.FileOutputStream;
 
 import com.google.android.exoplayer2.util.UriUtil;
 import com.github.catvod.crawler.JarLoader;
@@ -49,7 +50,6 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -164,6 +164,51 @@ public class ApiConfig {
     }
 
     private String TempKey = null;
+    /**
+     * 把配置里 site.api 的相对路径（./dr/lib/drpy2.min.js）补全成可加载的绝对地址。
+     * 标准 TVBox 配置约定相对路径基于配置文件所在目录解析，缺这步会导致
+     * loadModule 拿到 ./xxx 直接返回 null，JS/Python 站点全部静默失效。
+     */
+    private String resolveSiteApi(String configUrl, String siteApi) {
+        String resolved = resolveSiteApiInner(configUrl, siteApi);
+        if (siteApi != null && (siteApi.startsWith("./") || siteApi.startsWith("../"))) {
+            try {
+                FileOutputStream fos = new FileOutputStream("/sdcard/tvbox_resolve.log", true);
+                fos.write((configUrl + " | " + siteApi + " -> " + resolved + "\n").getBytes("UTF-8"));
+                fos.close();
+            } catch (Exception ignored) {
+            }
+        }
+        return resolved;
+    }
+
+    private String resolveSiteApiInner(String configUrl, String siteApi) {
+        if (siteApi == null || siteApi.isEmpty()) {
+            return siteApi;
+        }
+        if (!siteApi.startsWith("./") && !siteApi.startsWith("../")) {
+            return siteApi;
+        }
+        String baseUrl = configUrl == null ? "" : configUrl.trim();
+        if (baseUrl.isEmpty()) {
+            return siteApi;
+        }
+        while (siteApi.startsWith("../")) {
+            siteApi = siteApi.substring(3);
+            int slash = baseUrl.lastIndexOf('/');
+            if (slash > 0) {
+                baseUrl = baseUrl.substring(0, slash);
+            }
+        }
+        while (siteApi.startsWith("./")) {
+            siteApi = siteApi.substring(2);
+        }
+        if (!baseUrl.endsWith("/")) {
+            baseUrl = baseUrl + "/";
+        }
+        return baseUrl + siteApi;
+    }
+
     private String configUrl(String apiUrl){
         TempKey = null;
         String configUrl = "", pk = ";pk;";
@@ -759,7 +804,7 @@ public class ApiConfig {
             sb.setKey(siteKey);
             sb.setName(obj.has("name")?obj.get("name").getAsString().trim():siteKey);
             sb.setType(obj.get("type").getAsInt());
-            sb.setApi(obj.get("api").getAsString().trim());
+            sb.setApi(resolveSiteApi(apiUrl, obj.get("api").getAsString().trim()));
             sb.setSearchable(DefaultConfig.safeJsonInt(obj, "searchable", 1));
             sb.setQuickSearch(DefaultConfig.safeJsonInt(obj, "quickSearch", 1));
             sb.setChangeable(DefaultConfig.safeJsonInt(obj, "changeable", 1));
